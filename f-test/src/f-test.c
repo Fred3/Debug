@@ -474,44 +474,79 @@ void MemAccess() {
 #define COREADDR(a)  ((((a) & 0xC) << 24) | (((a) & 3) << 20))
 
 void MemTest() {
-  int seed, n, m, core, errors, errtotal=0;
+  int seed, n, m, core, errors, errtotal=0, loops=1, loop;
   unsigned int data[256], rdata[256];
+  char command[STRINGMAX];
+  long long int  ll;
 
-  seed = time(NULL);
-  printf("\n\tMemTest\nUsing seed value of %d\n", seed);
+  printf("\n\tMemTest\n");
 
-  srand(seed);
+  printf("Constant data or Random?\n(C/R)> ");
+  fgets(command, STRINGMAX, stdin);
+  if((command[0] & 0x5F) == 'C') {
 
-  for(core=0; core<16; core++) {
-    printf("Core %d\n", core);
-    errors = 0;
-
-    for(m=0; m<32768; m+=1024) {
-    
-      for(n=0; n<256; n++)
-	data[n] = rand();
-
-      //      printf("Core %d address 0x%X\n", core, EBASE + COREADDR(core));
-      //      sleep(2);
-      f_writearray(EBASE + COREADDR(core) + m, data, 1024);
-      f_readarray(EBASE + COREADDR(core) + m, rdata, 1024);
-
-      for(n=0; n<256; n++)
-	if(rdata[n] != data[n]) {
-	  printf("  0x%08X wanted 0x%08X got 0x%08X (0x%08X)\n", 
-		 EBASE+COREADDR(core)+m+(n*4), 
-		 data[n], rdata[n], data[n] ^ rdata[n]);
-	  errors++;
-	}
-
-      //      printf("%06d> %d errors\n", m, errors);
+    printf("Enter 64b hex data value\n> 0x");
+    fgets(command, STRINGMAX, stdin);
+    if(sscanf(command, "%llx", &ll) < 1) {
+      printf("Error parsing number\n");
+      return;
     }
 
-    printf("   %d errors\n", errors);
-    errtotal += errors;
+    for(n=0; n<256; n+=2)
+      *((long long int *)(data + n)) = ll;
+      
+  } else {
+
+    seed = time(NULL);
+    printf("Using seed value of %d\n", seed);
+    srand(seed);
+
+    for(n=0; n<256; n++)
+      data[n] = rand();
   }
 
-  printf("Done, %d errors total\n", errtotal);
+  printf("# times to loop:\n> ");
+  fgets(command, STRINGMAX, stdin);
+  loops = atoi(command);
+  
+  for(loop=1; loop<=loops; loop++) {
+
+    errtotal = 0;
+
+    for(core=0; core<16; core++) {
+      if(loops == 1)
+	printf("Core %d\n", core);
+      errors = 0;
+
+      for(m=1024; m<32768; m+=1024) {
+    
+	//      printf("Core %d address 0x%X\n", core, EBASE + COREADDR(core));
+	//      sleep(2);
+	f_writearray(EBASE + COREADDR(core) + m, data, 1024);
+	f_readarray(EBASE + COREADDR(core) + m, rdata, 1024);
+
+	for(n=0; n<256; n++)
+	  if(rdata[n] != data[n]) {
+
+	    if(loops == 1)
+	      printf("  0x%08X wanted 0x%08X got 0x%08X (0x%08X)\n", 
+		     EBASE+COREADDR(core)+m+(n*4), 
+		     data[n], rdata[n], data[n] ^ rdata[n]);
+
+	    errors++;
+	  }
+
+	//      printf("%06d> %d errors\n", m, errors);
+      }
+
+      if(loops == 1)
+	printf("   %d errors\n", errors);
+      errtotal += errors;
+    }
+
+    printf("Loop %d done, %d errors total\n", loop, errtotal);
+  }
+
 }
 
 void PeekPoke() {
