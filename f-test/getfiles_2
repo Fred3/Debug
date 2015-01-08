@@ -1,0 +1,1 @@
+rcp -r linaro@192.168.2.153:~linaro/Parallella/f-test/* .
