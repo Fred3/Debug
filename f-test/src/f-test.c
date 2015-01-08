@@ -488,7 +488,7 @@ void MemTest() {
 
     for(m=0; m<32768; m+=1024) {
     
-      for(n=0; n<=256; n++)
+      for(n=0; n<256; n++)
 	data[n] = rand();
 
       //      printf("Core %d address 0x%X\n", core, EBASE + COREADDR(core));
