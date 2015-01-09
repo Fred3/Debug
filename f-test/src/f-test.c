@@ -30,6 +30,9 @@ along with this program, see the file COPYING. If not, see
 #include "e_dma.h"
 #include "elink2.h"
 
+#define ZTEMP
+int GetTemp(float *);
+
 #ifndef countof
   #define countof(x)  (sizeof(x)/sizeof(x[0]))
 #endif
@@ -475,9 +478,19 @@ void MemAccess() {
 
 void MemTest() {
   int seed, n, m, core, errors, errtotal=0, loops=1, loop;
-  unsigned int data[256], rdata[256];
+  unsigned int data[256], rdata[256], allmask;
   char command[STRINGMAX];
   long long int  ll;
+  FILE  *logfile;
+#ifdef ZTEMP
+  float  temp;
+#endif
+
+  logfile = fopen("MemTest.log", "w");
+  if(logfile == NULL) {
+    printf("ERROR: Unable to open log file\n");
+    return;
+  }
 
   printf("\n\tMemTest\n");
 
@@ -512,6 +525,7 @@ void MemTest() {
   for(loop=1; loop<=loops; loop++) {
 
     errtotal = 0;
+    allmask  = 0;
 
     for(core=0; core<16; core++) {
       if(loops == 1)
@@ -533,6 +547,7 @@ void MemTest() {
 		     EBASE+COREADDR(core)+m+(n*4), 
 		     data[n], rdata[n], data[n] ^ rdata[n]);
 
+	    allmask |= data[n] ^ rdata[n];
 	    errors++;
 	  }
 
@@ -544,7 +559,16 @@ void MemTest() {
       errtotal += errors;
     }
 
-    printf("Loop %d done, %d errors total\n", loop, errtotal);
+#ifdef ZTEMP
+    GetTemp(&temp);
+    printf("Tz = %5.1f  ", temp);
+    fprintf(logfile, "Tz = %5.1f  ", temp);
+#endif
+
+    printf("Loop %5d done, %6d errors total (0x%08X)\n",
+	   loop, errtotal, allmask);
+    fprintf(logfile, "Loop %5d done, %6d errors total (0x%08X)\n",
+	    loop, errtotal, allmask);
   }
 
 }
@@ -1071,7 +1095,7 @@ void TimerTest() {
   f_read(EBASE+E_REG_CTIMER0, &reg);
   reg = 0xFFFFFFFF - reg;
 
-  printf("%ud cycles in 2 seconds = %0.2fMHz\n", reg, (double)reg / 2. / 1.0e6);
+  printf("%u cycles in 2 seconds = %0.2fMHz\n", reg, (double)reg / 2. / 1.0e6);
 
   printf("Done!\n\n");
 }
