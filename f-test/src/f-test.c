@@ -21,6 +21,7 @@ along with this program, see the file COPYING. If not, see
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
@@ -38,6 +39,10 @@ int GetTemp(float *);
 #endif
 
 void usage();
+void GoUser();
+void GoAuto();
+void GoExec(char *cmdstr);
+
 void ShowPlatformInfo();
 void ParseFpgaVersion(int version);
 void Registers();
@@ -55,6 +60,7 @@ void OlaTest();
 void OlaTest2();
 void TimerTest();
 void TXSpeed();
+void ClockGate();
 
 int Dma1D(unsigned int srcaddr, unsigned int dstaddr, 
 	  unsigned int count, unsigned int size);
@@ -68,38 +74,80 @@ int Dma1D(unsigned int srcaddr, unsigned int dstaddr,
 #define ROWS 4
 
 int  g_cautious = 1;
+int  g_auto = 0;
+int  g_error = 0;
 
 struct menu_st {
   const char  id;
+  int         isauto;
   const char  *desc;
   void       (*func)();
 };
 
 struct menu_st topmenu[] = {
-  {'r', "FPGA System Registers", &Registers},
-  {'p', "Platform Info", &ShowPlatformInfo},
-  {'R', "Reset", &Reset},
-  {'l', "LED Toggle", &ToggleLed},
-  {'m', "Memory write/read", &MemAccess},
-  {'P', "Peek/Poke", &PeekPoke},
-  {'d', "DMA Test", &DmaTest},
-  {'M', "Memory test", &MemTest},
-  {'s', "Streaming Test", &StreamTest},
-  {'6', "64b Memory write/read", &MemAccess64},
-  {'C', "Toggle Cautious mode", &SetCautious},
-  {'o', "Ola Test", &OlaTest},
-  {'O', "Ola Test #2", &OlaTest2},
-  {'t', "Timer Test", &TimerTest},
-  {'T', "TX Speed", &TXSpeed},
-  {'Q', "Quit", NULL},
-  {0, NULL, NULL}
+  {'r', 0, "FPGA System Registers", &Registers},
+  {'p', 0, "Platform Info", &ShowPlatformInfo},
+  {'R', 1, "Reset", &Reset},
+  {'l', 2, "LED Toggle", &ToggleLed},
+  {'m', 0, "Memory write/read", &MemAccess},
+  {'P', 0, "Peek/Poke", &PeekPoke},
+  {'d', 2, "DMA Test", &DmaTest},
+  {'M', 2, "Memory test", &MemTest},
+  {'s', 2, "Streaming Test", &StreamTest},
+  {'6', 2, "64b Memory write/read", &MemAccess64},
+  {'c', 1, "Toggle Cautious mode", &SetCautious},
+  {'o', 2, "Ola Test", &OlaTest},
+  {'O', 2, "Ola Test #2", &OlaTest2},
+  {'t', 0, "Timer Test", &TimerTest},
+  {'T', 0, "TX Speed", &TXSpeed},
+  {'C', 1, "Toggle Clock Gating", &ClockGate},
+  {'Q', 0, "Quit", NULL},
+  {0,   0, NULL, NULL}
 };
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
+  int  c;
+
+  printf("\n\tf-test Parallella Info/Debug\n\n");
+
+  opterr = 0;
+
+  while((c = getopt(argc, argv, "hax:")) != -1) {
+    switch(c) {
+    case 'h':
+      usage();
+      return 0;
+
+    case 'a':
+      GoAuto();
+      return 0;
+
+    case 'x':
+      GoExec(optarg);
+      return 0;
+
+    case '?':
+      if(optopt == 'x')
+	fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+      else if(isprint(optopt))
+	fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+      else
+	fprintf(stderr, "Unkown option character '\\x%x'.\n", optopt);
+      return 1;
+
+    default:
+      abort();
+    }
+  }
+
+  GoUser();
+
+  return 0;
+}
+
+void GoUser() {
   char command[STRINGMAX];
   int  n;
-
-  printf("f-test Parallella Info/Debug\n\n");
 
   while(1) {
 
@@ -125,8 +173,57 @@ int main(int argc, char *argv[]){
     (*topmenu[n].func)();
 
   };
+}
 
-  return 0;
+void GoAuto() {
+int n, loopcount=0;
+
+  g_auto = 1;
+
+  printf("Executing initial list:\n");
+
+  for(n=0; topmenu[n].id; n++)
+    if((topmenu[n].isauto & 1) && topmenu[n].func)
+      (*topmenu[n].func)();
+
+  printf("Init complete, running tests:\n");
+
+  while(!g_error) {
+
+    printf("\n\tLoop %d\n\n", loopcount++);
+
+    for(n=0; topmenu[n].id && !g_error; n++)
+      if((topmenu[n].isauto & 2) && topmenu[n].func)
+        (*topmenu[n].func)();
+  }
+
+printf("ERROR FOUND! HALTING TEST AFTER LOOP %d\n\n", loopcount);
+
+  while(1) {
+    ToggleLed();
+    usleep(100000);      // fast flashing indicates error
+  }
+}
+
+void GoExec(char *cmdstr) {
+int c, n;
+
+  for(c=0; cmdstr[c]; c++) {
+
+    for(n=0; topmenu[n].id; n++)
+      if(cmdstr[c] == topmenu[n].id)
+        break;
+
+    if(!topmenu[n].id) {
+      printf("Please enter a choice from the menu!\n");
+      return;
+    }
+
+    if(!topmenu[n].func)
+      return;  // Quit
+
+    (*topmenu[n].func)();
+  }
 }
 
 void Registers() {
@@ -178,7 +275,14 @@ void Registers() {
 
 void usage() {
 
-
+  printf("Usage:\n> f-test -h\n"
+	 "\tPrint this help message and exit.\n"
+	 "> f-test -a\n"
+	 "\t-a = Run tests automatically, stop on failure\n"
+	 "> f-test -x CDEF\n"
+	 "\t-x C = Execute one or more commands 'C', 'D'... and return\n"
+	 "> f-test\n"
+	 "\tNo args = run interactvely\n\n");
 
 }
 
@@ -416,7 +520,8 @@ void ToggleLed() {
 
   do {
 
-    printf("Setting LED state to %s\n", led_state?"OFF":"ON");
+    if(!g_auto)
+      printf("Setting LED state to %s\n", led_state?"OFF":"ON");
 
     ret = f_read(E_SYS_CFGTX, &txcfg.reg);
     if(ret) break;
@@ -441,8 +546,10 @@ void ToggleLed() {
 
   } while(0);
 
-  if(ret)
+  if(ret) {
     printf("ERROR: Got return value of %d\n", ret);
+    g_error++;
+  }
 }
 
 void MemAccess() {
@@ -466,11 +573,15 @@ void MemAccess() {
     if(ret) break;
 
     printf("  Got 0x%08X (0x%08X)\n", rdata, data|rdata);
+    if((data|rdata) != 0xFFFFFFFF)
+      g_error++;
 
   } while(0);
 
-  if(ret)
+  if(ret) {
     printf("ERROR: Got a return value of %d\n", ret);
+    g_error++;
+  }
 
 }
 
@@ -481,46 +592,59 @@ void MemTest() {
   unsigned int data[256], rdata[256], allmask;
   char command[STRINGMAX];
   long long int  ll;
-  FILE  *logfile;
+  FILE  *logfile = NULL;
 #ifdef ZTEMP
   float  temp;
 #endif
 
-  logfile = fopen("MemTest.log", "w");
-  if(logfile == NULL) {
-    printf("ERROR: Unable to open log file\n");
-    return;
-  }
-
   printf("\n\tMemTest\n");
 
-  printf("Constant data or Random?\n(C/R)> ");
-  fgets(command, STRINGMAX, stdin);
-  if((command[0] & 0x5F) == 'C') {
+  if(g_auto) {
 
-    printf("Enter 64b hex data value\n> 0x");
-    fgets(command, STRINGMAX, stdin);
-    if(sscanf(command, "%llx", &ll) < 1) {
-      printf("Error parsing number\n");
-      return;
-    }
-
-    for(n=0; n<256; n+=2)
-      *((long long int *)(data + n)) = ll;
-      
-  } else {
+    loops = 10;
 
     seed = time(NULL);
-    printf("Using seed value of %d\n", seed);
     srand(seed);
 
     for(n=0; n<256; n++)
       data[n] = rand();
-  }
 
-  printf("# times to loop:\n> ");
-  fgets(command, STRINGMAX, stdin);
-  loops = atoi(command);
+  } else {  // user mode
+
+    logfile = fopen("MemTest.log", "wa");
+    if(logfile == NULL) {
+      printf("ERROR: Unable to open log file\n");
+      return;
+    }
+
+    printf("Constant data or Random?\n(C/R)> ");
+    fgets(command, STRINGMAX, stdin);
+    if((command[0] & 0x5F) == 'C') {
+
+      printf("Enter 64b hex data value\n> 0x");
+      fgets(command, STRINGMAX, stdin);
+      if(sscanf(command, "%llx", &ll) < 1) {
+	printf("Error parsing number\n");
+	return;
+      }
+
+      for(n=0; n<256; n+=2)
+	*((long long int *)(data + n)) = ll;
+      
+    } else {
+
+      seed = time(NULL);
+      printf("Using seed value of %d\n", seed);
+      srand(seed);
+
+      for(n=0; n<256; n++)
+	data[n] = rand();
+    }
+
+    printf("# times to loop:\n> ");
+    fgets(command, STRINGMAX, stdin);
+    loops = atoi(command);
+  }
   
   for(loop=1; loop<=loops; loop++) {
 
@@ -532,7 +656,7 @@ void MemTest() {
 	printf("Core %d\n", core);
       errors = 0;
 
-      for(m=1024; m<32768; m+=1024) {
+      for(m=0; m<32768; m+=1024) {
     
 	//      printf("Core %d address 0x%X\n", core, EBASE + COREADDR(core));
 	//      sleep(2);
@@ -562,13 +686,17 @@ void MemTest() {
 #ifdef ZTEMP
     GetTemp(&temp);
     printf("Tz = %5.1f  ", temp);
-    fprintf(logfile, "Tz = %5.1f  ", temp);
+    if(logfile)
+      fprintf(logfile, "Tz = %5.1f  ", temp);
 #endif
 
     printf("Loop %5d done, %6d errors total (0x%08X)\n",
 	   loop, errtotal, allmask);
-    fprintf(logfile, "Loop %5d done, %6d errors total (0x%08X)\n",
-	    loop, errtotal, allmask);
+    if(logfile)
+      fprintf(logfile, "Loop %5d done, %6d errors total (0x%08X)\n",
+	      loop, errtotal, allmask);
+
+    if(errtotal) g_error++;
   }
 
 }
@@ -710,6 +838,7 @@ void DmaTest() {
   f_read(EBASE + E_REG_DMA0COUNT, &data);
   printf("Count = 0x%08X\n", data);
 
+  // TODO: ERROR CHECKING!
 }
 
 #define STREAMXFERS  256
@@ -721,16 +850,24 @@ void StreamTest() {
 
   printf("\n\tDMA Streaming-write test, Epiphany -> SDRAM\n");
 
-  printf("Enter size: 0=bytes, 1=halfwords 2=words 3=doublewords\n");
-  fgets(command, STRINGMAX, stdin);
-  l = atoi(command);
-  beats = sizeof(data) / (1<<l);
+  if(g_auto) {
 
-  printf("Enter # of beats (max %d):\n", beats);
-  fgets(command, STRINGMAX, stdin);
-  beats = atoi(command);
-  if(beats > sizeof(data) / (1<<l))
+    l = 3;  // doublewords
     beats = sizeof(data) / (1<<l);
+
+  } else {
+
+    printf("Enter size: 0=bytes, 1=halfwords 2=words 3=doublewords\n");
+    fgets(command, STRINGMAX, stdin);
+    l = atoi(command);
+    beats = sizeof(data) / (1<<l);
+
+    printf("Enter # of beats (max %d):\n", beats);
+    fgets(command, STRINGMAX, stdin);
+    beats = atoi(command);
+    if(beats > sizeof(data) / (1<<l))
+    beats = sizeof(data) / (1<<l);
+  }
 
   printf("Moving %d bytes total.\n", beats * (1<<l));
 
@@ -780,7 +917,8 @@ void StreamTest() {
       errors++;
 
   printf("\nFound %d errors out of %d dwords.\n", errors, beats*(1<<l)/8);
-
+  if(errors)
+    g_error++;
 }
 
 void MemAccess64() {
@@ -805,6 +943,9 @@ void MemAccess64() {
   rdata = *llptr;
 
   printf("  Got 0x%016llX (0x%016llX)\n", rdata, data | rdata);
+
+  if((data | rdata) != 0xFFFFFFFFFFFFFFFFULL)
+    g_error++;
 
   f_unmap((void *)llptr);
 }
@@ -860,8 +1001,18 @@ void OlaTest() {
   // Read back buffer
   uint64_t rbuf[OLABUFSIZE>>3];
 
-  printf("Random >R<eads or >W<rites?\n");
-  fgets(command, STRINGMAX, stdin);
+  printf("Ola Test #1\n");
+
+  if(g_auto) {
+
+    command[0] = 'R';
+
+  } else {
+
+    printf("Random >R<eads or >W<rites?\n");
+    fgets(command, STRINGMAX, stdin);
+
+  }
   
   if((command[0]&0x5F) == 'R') {
 
@@ -977,15 +1128,17 @@ void OlaTest() {
     }
   }
 
-  if (!errors)
+  if (!errors) {
     printf("Everything seems ok\n");
-  else
+  } else {
     printf("%d errors reported, accumulated XOR: 0x%016llX\n", errors, allerrs);
+    g_error++;
+  }
 
 }
 
 void OlaTest2() {
-  unsigned int offset, test, done;
+  unsigned int offset, test, done, errors=0;
   volatile uint8_t *p;
   volatile uint8_t *q;
   volatile uint8_t *base;
@@ -997,6 +1150,8 @@ void OlaTest2() {
     printf("Can't map memory\n");
     return;
   }
+
+  printf("Ola Test #2\n");
 
   for(test=1, done=0; !done; test++) {
 
@@ -1062,15 +1217,20 @@ void OlaTest2() {
     
     printf("In:\t0x%llX 0x%llX\n",  out[0], out[1]);
     printf("Out:\t0x%llX 0x%llX\n", in[0],  in[1]);
-    if(out[0] != in[0] || out[1] != in[1])
+    if(out[0] != in[0] || out[1] != in[1]) {
       printf("  FAILED!\n");
-    else
+      errors++;
+    } else {
       printf("  PASSED\n");
+    }
   }
 
   f_unmap((void *)base);
 
   printf("Done\n\n");
+
+  if(errors)
+    g_error++;
 }
 
 void TimerTest() {
@@ -1132,6 +1292,32 @@ void TXSpeed() {
   else
     printf("Done\n");
 
+}
+    
+void ClockGate() {
+  static int gateEnable = 0;
+  unsigned core, data, addr;
+
+  gateEnable = !gateEnable;
+  printf("Setting all clock-gating bits to %d\n", gateEnable);
+
+  for (core=0; core<16; core++) {
+
+    //eCore clock gating
+    addr = EBASE + COREADDR(core) + 0xF0400;
+    f_read(addr, &data);
+    data = gateEnable ? (data | 0x00400000) : (data & ~0x00400000);
+    printf("0x%08X <- 0x%08X\n", addr, data);
+    f_write(addr, data);
+
+    //eMesh clock gating
+    addr = EBASE + COREADDR(core) + 0xF0700;
+    f_read(addr, &data);
+    data = gateEnable ? (data | 0x00000002) : (data & ~0x00000002);
+    printf("0x%08X <- 0x%08X\n", addr, data);
+    f_write(addr, data);
+
+  }  
 }
 
 #if 0

@@ -1,1 +1,1 @@
-rcp -r linaro@192.168.1.244:~linaro/Parallella/f-test/* .
+rcp -r linaro@192.168.1.244:~linaro/Parallella/Debug/f-test/* .
