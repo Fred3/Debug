@@ -41,7 +41,7 @@ void set_tx_divider(e_epiphany_t *dev, unsigned int divider)
 {
 	e_syscfg_tx_t txcfg;
 
-	txcfg.reg = ee_read_esys(E_SYS_CFGTX, txcfg.reg);
+	txcfg.reg = ee_read_esys(E_SYS_CFGTX);
 
 	// Force route east
 	txcfg.fields.ctrlmode = 0x5;
