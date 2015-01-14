@@ -352,6 +352,11 @@ void ParseFpgaVersion(int version) {
            b, c, a, d);
   } else {
 
+    if((a & 0x80) != 0 && a != 0xFF) {
+      printf("DEBUG/EXPERIMENTAL Version Detected!\n");
+      a &= 0x7F;
+    }
+
     str = gen_strings[(a < GEN_MAX) ? a : GEN_MAX];
     printf("Generation %d: %s\n", a, str);
 
@@ -784,12 +789,19 @@ void PeekPoke() {
 #define DESCADDR 0x1000
 
 void DmaTest() {
-  unsigned int  data, datah, l, n;
+  unsigned int  data, datah, l, n, inl, inh, errors=0;
+  unsigned long long int dataw, inw, mask;
 
   printf("DMA test\n\tEpiphany -> SDRAM\n");
 
-  f_write(EBASE, 0xDEADBEEF);  // Value to be moved
-  f_write(EBASE+4, 0xACCE55ED);  // For double-word move
+  inl = 0xDEADBEEF;
+  inh = 0xACCE55ED;
+  inw = inh;
+  inw <<= 32;
+  inw |= inl;
+
+  f_write(EBASE, inl);  // Value to be moved
+  f_write(EBASE+4, inh);  // For double-word move
   f_write(ASHAREBASE, 0x0);  // Destination for data
   f_write(ASHAREBASE+4, 0x0);
 
@@ -799,14 +811,52 @@ void DmaTest() {
 
   for(l=0; l<4; l++) {  // try all different sizes
 
-    n = 3 & (-1 << l);  // Align src & dest offsets
+    mask = (l == 3) ? -1LL :
+      ((1ULL << (8 << l)) - 1);
 
-    if(Dma1D(n, ESHAREBASE+n, 1, l))
-      return;
+    for(n=0; n<8; n += (1<<l)) {
+
+      f_write(ASHAREBASE, 0x0);
+      f_write(ASHAREBASE+4, 0x0);
+
+      // source, dest, count, size
+      if(Dma1D(n, ESHAREBASE, 1, l))
+	return;
    
-    f_read(ASHAREBASE, &data);
-    f_read(ASHAREBASE+4, &datah);
-    printf("Xfer %d       -> 0x%08X:%08X\n", l, datah, data);
+      f_read(ASHAREBASE, &data);
+      f_read(ASHAREBASE+4, &datah);
+      printf("Xfer %d/%d       -> 0x%08X:%08X\n", l, n, datah, data);
+
+      dataw = datah;
+      dataw <<= 32;
+      dataw |= data;
+      if(dataw != ((inw >> (8*n)) & mask)) {
+	printf("ERROR");
+	errors++;
+      }
+    }
+
+    for(n = (1<<l); n<8; n += (1<<l)) {
+
+      f_write(ASHAREBASE, 0x0);
+      f_write(ASHAREBASE+4, 0x0);
+
+      // source, dest, count, size
+      if(Dma1D(0, ESHAREBASE+n, 1, l))
+	return;
+   
+      f_read(ASHAREBASE, &data);
+      f_read(ASHAREBASE+4, &datah);
+      printf("Xfer %d/-%d      -> 0x%08X:%08X\n", l, n, datah, data);
+
+      dataw = datah;
+      dataw <<= 32;
+      dataw |= data;
+      if(dataw != ((inw & mask) << (8*n))) {
+	printf("ERROR\n");
+	errors++;
+      }
+    }
   }
 
   f_read(EBASE + E_REG_DMA0COUNT, &data);
@@ -814,10 +864,16 @@ void DmaTest() {
 
   printf("\n\tSDRAM -> Epiphany\n");
 
+  inl = 0xCABBA6E5;
+  inh = 0xBABBA6E5;
+  inw = inh;
+  inw <<= 32;
+  inw |= inl;
+
   f_write(EBASE, 0);     // Destination
   f_write(EBASE+4, 0);   // " For double-word move
-  f_write(ASHAREBASE, 0xCABBA6E5);  // Source data
-  f_write(ASHAREBASE+4, 0xBABBA6E5);
+  f_write(ASHAREBASE, inl);  // Source data
+  f_write(ASHAREBASE+4, inh);
 
   f_read(EBASE, &data);
   f_read(EBASE+4, &datah);
@@ -825,20 +881,60 @@ void DmaTest() {
 
   for(l=0; l<4; l++) {  // try all different sizes
 
-    n = 3 & (-1 << l);  // Align src & dest offsets
+    mask = (l == 3) ? -1LL :
+      ((1ULL << (8 << l)) - 1);
 
-    if(Dma1D(ESHAREBASE+n, n, 1, l))
-      return;
+    for(n=0; n<8; n += (1 << l)) {
+
+      f_write(EBASE, 0);
+      f_write(EBASE+4, 0);
+
+      if(Dma1D(ESHAREBASE+n, 0, 1, l))
+	return;
    
-    f_read(EBASE, &data);
-    f_read(EBASE+4, &datah);
-    printf("Xfer %d       -> 0x%08X:%08X\n", l, datah, data);
+      f_read(EBASE, &data);
+      f_read(EBASE+4, &datah);
+      printf("Xfer %d/%d       -> 0x%08X:%08X\n", l, n, datah, data);
+
+      dataw = datah;
+      dataw <<= 32;
+      dataw |= data;
+      if(dataw != ((inw >> (8*n)) & mask)){
+	printf("ERROR\n");
+	errors++;
+      }
+    }
+
+    for(n = (1<<l); n<8; n += (1 << l)) {
+
+      f_write(EBASE, 0);
+      f_write(EBASE+4, 0);
+
+      if(Dma1D(ESHAREBASE, n, 1, l))
+	return;
+   
+      f_read(EBASE, &data);
+      f_read(EBASE+4, &datah);
+      printf("Xfer %d/-%d      -> 0x%08X:%08X\n", l, n, datah, data);
+
+      dataw = datah;
+      dataw <<= 32;
+      dataw |= data;
+      if(dataw != ((inw & mask) << (8*n))) {
+	printf("ERROR\n");
+	errors++;
+      }
+    }
   }
 
   f_read(EBASE + E_REG_DMA0COUNT, &data);
   printf("Count = 0x%08X\n", data);
 
-  // TODO: ERROR CHECKING!
+
+  if(errors) {
+    printf("%d ERRORS detected!\n", errors);
+    g_error++;
+  }
 }
 
 #define STREAMXFERS  256
@@ -1416,7 +1512,6 @@ void my_reset_system() {
       }
     }
   }  
-
  
   //Close down device
   e_close(&dev);
@@ -1460,10 +1555,6 @@ int Dma1D(unsigned int srcaddr, unsigned int dstaddr,
       printf("ERROR: Timeout waiting for DMA (%d)\n", dmast.dmastate);
       return -1;
     }
-  } else {
-
-    printf("NOT checking IDLE bit.\n");
-    sleep(1);
   }
   
   return 0;
