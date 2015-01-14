@@ -52,11 +52,11 @@ typedef struct {
 
 int main(void)
 {
-	test_t *monkey = (void *) 0x7000;
-	uint32_t foo = 0x84838281;
-	volatile void *local = (void *) 0x7020;
-	volatile void *chip = (void *) 0x80901000;
-	volatile void *eram = (void *) 0x8f100000;
+	register test_t *monkey asm("r20") = (void *) 0x7000;
+	register uint32_t foo asm("r21") = 0x84838281;
+	register volatile void *local asm("r22") = (void *) 0x6ff0;
+	register volatile void *chip  asm("r23") = (void *) 0x80901000;
+	register volatile void *eram  asm("r24") = (void *) 0x8f100000;
 
 	*((uint32_t *)local) = 0xdeadbeef;
 	*((uint32_t *)chip) = 0xdeadbeef;

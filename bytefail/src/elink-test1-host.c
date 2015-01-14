@@ -29,6 +29,33 @@ along with this program, see the file COPYING. If not, see
 #include <e-hal.h>
 #include <e-loader.h>
 
+void set_cclk_divider(unsigned int divider)
+{
+	e_syscfg_clk_t clkcfg;
+	clkcfg.reg =  ee_read_esys(E_SYS_CFGCLK);
+	clkcfg.fields.divider = divider; // Full speed
+	ee_write_esys(E_SYS_CFGCLK, clkcfg.reg);
+}
+
+void set_tx_divider(e_epiphany_t *dev, unsigned int divider)
+{
+	e_syscfg_tx_t txcfg;
+
+	txcfg.reg = ee_read_esys(E_SYS_CFGTX);
+
+	// Force route east
+	txcfg.fields.ctrlmode = 0x5;
+	ee_write_esys(E_SYS_CFGTX, txcfg.reg);
+
+	//Change clock divider to solve FPGA receiver speed path
+	e_write(&dev, 2, 3, 0xf0300, &divider, sizeof(unsigned int));
+
+	//Return to normal mode
+	txcfg.fields.ctrlmode = 0;
+	ee_write_esys(E_SYS_CFGTX, txcfg.reg);
+
+}
+
 int main(int argc, char *argv[])
 {
 	e_epiphany_t dev;
@@ -49,6 +76,9 @@ int main(int argc, char *argv[])
 	e_get_platform_info(&platform);
 	e_reset_system();
 	e_open(&dev, 0, 0, platform.rows, platform.cols);
+
+	set_cclk_divider(6);
+	set_tx_divider(&dev, 0);
 
 	e_write(&dev, 0, 0, 0x7000, &bad, sizeof(uint32_t));
 

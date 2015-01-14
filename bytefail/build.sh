@@ -30,5 +30,5 @@ esac
 ${CROSS_PREFIX}gcc -O2 -Wall src/elink-test1-host.c -o bin/elink-test1-host.elf ${EINCS} ${ELIBS} -le-hal -le-loader -lpthread
 
 # Build DEVICE side program
-e-gcc -O0 -T ${ELDF} src/elink-test1-device.c -o bin/elink-test1-device.elf -le-lib -lm -ffast-math
+e-gcc -g -O0 -T ${ELDF} src/elink-test1-device.c -o bin/elink-test1-device.elf -le-lib
 
