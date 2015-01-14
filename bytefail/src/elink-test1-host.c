@@ -77,6 +77,9 @@ int main(int argc, char *argv[])
 	e_reset_system();
 	e_open(&dev, 0, 0, platform.rows, platform.cols);
 
+	set_cclk_divider(6);
+	set_tx_divider(&dev, 0);
+
 	e_write(&dev, 0, 0, 0x7000, &bad, sizeof(uint32_t));
 
 	e_load_group("./bin/elink-test1-device.elf" , &dev, 0, 0, 1, 1, E_TRUE);
