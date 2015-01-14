@@ -35,6 +35,12 @@ int main(int argc, char *argv[])
 	e_platform_t platform;
 	uint32_t local_read, chip_read, eram_read;
 	uint32_t local_write, chip_write, eram_write;
+	uint32_t local_sread, chip_sread, eram_sread;
+	uint32_t local_swrite, chip_swrite, eram_swrite;
+	uint32_t local_read_16, chip_read_16, eram_read_16;
+	uint32_t local_write_16, chip_write_16, eram_write_16;
+	uint32_t local_sread_16, chip_sread_16, eram_sread_16;
+	uint32_t local_swrite_16, chip_swrite_16, eram_swrite_16;
 	int fail = 0;
 	uint32_t bad = 0xbaadc0de;
 
@@ -63,26 +69,97 @@ int main(int argc, char *argv[])
 	if (local_write != chip_write || local_write != eram_write)
 		fail++;
 
-	printf("Reads\n");
-	printf("local: 0x%08x\n", local_read);
-	printf("chip: 0x%08x\n", chip_read);
-	printf("eram: 0x%08x\n", eram_read);
+	e_read(&dev, 0, 0, 0x7018, &local_sread, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x701C, &chip_sread, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7020, &eram_sread, sizeof(uint32_t));
+	if (local_sread != chip_sread || local_sread != eram_sread)
+		fail++;
+
+	e_read(&dev, 0, 0, 0x7024, &local_swrite, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7028, &chip_swrite, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x702C, &eram_swrite, sizeof(uint32_t));
+	if (local_swrite != chip_swrite || local_swrite != eram_swrite)
+		fail++;
+
+	printf("Unsigned Reads\n");
+	printf("local: 0x%08X\n", local_read);
+	printf("chip: 0x%08X\n", chip_read);
+	printf("eram: 0x%08X\n", eram_read);
 	putchar('\n');
 
+	printf("Unsigned Writes\n");
+	printf("local: 0x%08X\n", local_write);
+	printf("chip: 0x%08X\n", chip_write);
+	printf("eram: 0x%08X\n", eram_write);
+	putchar('\n');
 
-	printf("Writes\n");
-	printf("local: 0x%08x\n", local_write);
-	printf("chip: 0x%08x\n", chip_write);
-	printf("eram: 0x%08x\n", eram_write);
+	printf("Signed Reads\n");
+	printf("local: 0x%08X\n", local_sread);
+	printf("chip: 0x%08X\n", chip_sread);
+	printf("eram: 0x%08X\n", eram_sread);
+	putchar('\n');
+
+	printf("Signed Writes\n");
+	printf("local: 0x%08X\n", local_swrite);
+	printf("chip: 0x%08X\n", chip_swrite);
+	printf("eram: 0x%08X\n", eram_swrite);
+	putchar('\n');
+
+	e_read(&dev, 0, 0, 0x7030, &local_read_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7034, &chip_read_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7038, &eram_read_16, sizeof(uint32_t));
+	if (local_read_16 != chip_read_16 || local_read_16 != eram_read_16)
+		fail++;
+
+	e_read(&dev, 0, 0, 0x703c, &local_write_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7040, &chip_write_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7044, &eram_write_16, sizeof(uint32_t));
+	if (local_write_16 != chip_write_16 || local_write_16 != eram_write_16)
+		fail++;
+
+	e_read(&dev, 0, 0, 0x7048, &local_sread_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x704C, &chip_sread_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7050, &eram_sread_16, sizeof(uint32_t));
+	if (local_sread_16 != chip_sread_16 || local_sread_16 != eram_sread_16)
+		fail++;
+
+	e_read(&dev, 0, 0, 0x7054, &local_swrite_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x7058, &chip_swrite_16, sizeof(uint32_t));
+	e_read(&dev, 0, 0, 0x705C, &eram_swrite_16, sizeof(uint32_t));
+	if (local_swrite_16 != chip_swrite_16 || local_swrite_16 != eram_swrite_16)
+		fail++;
+
+	printf("16b Unsigned Reads\n");
+	printf("local: 0x%08X\n", local_read_16);
+	printf("chip: 0x%08X\n", chip_read_16);
+	printf("eram: 0x%08X\n", eram_read_16);
+	putchar('\n');
+
+	printf("16b Unsigned Writes\n");
+	printf("local: 0x%08X\n", local_write_16);
+	printf("chip: 0x%08X\n", chip_write_16);
+	printf("eram: 0x%08X\n", eram_write_16);
+	putchar('\n');
+
+	printf("16b Signed Reads\n");
+	printf("local: 0x%08X\n", local_sread_16);
+	printf("chip: 0x%08X\n", chip_sread_16);
+	printf("eram: 0x%08X\n", eram_sread_16);
+	putchar('\n');
+
+	printf("16b Signed Writes\n");
+	printf("local: 0x%08X\n", local_swrite_16);
+	printf("chip: 0x%08X\n", chip_swrite_16);
+	printf("eram: 0x%08X\n", eram_swrite_16);
 	putchar('\n');
 
 	e_close(&dev);
 	e_finalize();
 
 	if (fail)
-		printf("FAILED\n");
+	  printf("%d x FAILED\n", fail);
 	else
-		printf("PASSED\n");
+	  printf("PASSED\n");
 
 	return fail;
 }
