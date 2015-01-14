@@ -10,7 +10,7 @@ SCRIPT=$(readlink -f "$0")
 EXEPATH=$(dirname "$SCRIPT")
 
 #sudo -E LD_LIBRARY_PATH=${ELIBS} EPIPHANY_HDF=${EHDF} $EXEPATH/bin/f-test.elf
-sudo $EXEPATH/bin/f-test
+sudo $EXEPATH/bin/f-test $@
 
 #if [ $? -ne 0 ] 
 #then

@@ -40,8 +40,7 @@ int GetTemp(float *);
 
 void usage();
 void GoUser();
-void GoAuto();
-void GoExec(char *cmdstr);
+void GoAuto(char *cmdstr, int loop);
 
 void ShowPlatformInfo();
 void ParseFpgaVersion(int version);
@@ -79,60 +78,64 @@ int  g_error = 0;
 
 struct menu_st {
   const char  id;
-  int         isauto;
   const char  *desc;
   void       (*func)();
 };
 
 struct menu_st topmenu[] = {
-  {'r', 0, "FPGA System Registers", &Registers},
-  {'p', 0, "Platform Info", &ShowPlatformInfo},
-  {'R', 1, "Reset", &Reset},
-  {'l', 2, "LED Toggle", &ToggleLed},
-  {'m', 0, "Memory write/read", &MemAccess},
-  {'P', 0, "Peek/Poke", &PeekPoke},
-  {'d', 2, "DMA Test", &DmaTest},
-  {'M', 2, "Memory test", &MemTest},
-  {'s', 2, "Streaming Test", &StreamTest},
-  {'6', 2, "64b Memory write/read", &MemAccess64},
-  {'c', 1, "Toggle Cautious mode", &SetCautious},
-  {'o', 2, "Ola Test", &OlaTest},
-  {'O', 2, "Ola Test #2", &OlaTest2},
-  {'t', 0, "Timer Test", &TimerTest},
-  {'T', 0, "TX Speed", &TXSpeed},
-  {'C', 1, "Toggle Clock Gating", &ClockGate},
-  {'Q', 0, "Quit", NULL},
-  {0,   0, NULL, NULL}
+  {'r', "FPGA System Registers", &Registers},
+  {'p', "Platform Info", &ShowPlatformInfo},
+  {'R', "Reset", &Reset},
+  {'l', "LED Toggle", &ToggleLed},
+  {'m', "Memory write/read", &MemAccess},
+  {'P', "Peek/Poke", &PeekPoke},
+  {'d', "DMA Test", &DmaTest},
+  {'M', "Memory test", &MemTest},
+  {'s', "Streaming Test", &StreamTest},
+  {'6', "64b Memory write/read", &MemAccess64},
+  {'c', "Toggle Cautious mode", &SetCautious},
+  {'o', "Ola Test", &OlaTest},
+  {'O', "Ola Test #2", &OlaTest2},
+  {'t', "Timer Test", &TimerTest},
+  {'T', "TX Speed", &TXSpeed},
+  {'C', "Toggle Clock Gating", &ClockGate},
+  {'Q', "Quit", NULL},
+  {0,   NULL, NULL}
 };
 
 int main(int argc, char *argv[]) {
   int  c;
+  char *strAuto = NULL, *strExec = NULL;
 
   printf("\n\tf-test Parallella Info/Debug\n\n");
 
   opterr = 0;
 
-  while((c = getopt(argc, argv, "hax:")) != -1) {
+  while((c = getopt(argc, argv, "ha::x::")) != -1) {
     switch(c) {
     case 'h':
       usage();
       return 0;
 
     case 'a':
-      GoAuto();
-      return 0;
+      if(optarg)
+        strAuto = optarg;
+      else
+        strAuto = "ldMs6oO";  // Default
+      break;
 
     case 'x':
-      GoExec(optarg);
-      return 0;
+      if(optarg)
+        strExec = optarg;
+      else
+        strExec = "RcCT";  // Default
+      break;
 
     case '?':
-      if(optopt == 'x')
-	fprintf(stderr, "Option -%c requires an argument.\n", optopt);
-      else if(isprint(optopt))
+      if(isprint(optopt))
 	fprintf(stderr, "Unknown option '-%c'.\n", optopt);
       else
-	fprintf(stderr, "Unkown option character '\\x%x'.\n", optopt);
+	fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
       return 1;
 
     default:
@@ -140,7 +143,14 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  GoUser();
+  if(strExec)
+    GoAuto(strExec, 0);
+
+  if(strAuto)
+    GoAuto(strAuto, 1);
+
+  if(!strExec && !strAuto)
+    GoUser();
 
   return 0;
 }
@@ -175,54 +185,38 @@ void GoUser() {
   };
 }
 
-void GoAuto() {
-int n, loopcount=0;
+void GoAuto(char *strcmd, int loop) {
+  int c, n, loopcount=0;
 
   g_auto = 1;
 
-  printf("Executing initial list:\n");
+  do {
 
-  for(n=0; topmenu[n].id; n++)
-    if((topmenu[n].isauto & 1) && topmenu[n].func)
-      (*topmenu[n].func)();
+    if(loop)
+      printf("\n\tLoop %d\n\n", ++loopcount);
 
-  printf("Init complete, running tests:\n");
+    for(c=0; strcmd[c]; c++) {
 
-  while(!g_error) {
+      for(n=0; topmenu[n].id; n++) {
 
-    printf("\n\tLoop %d\n\n", loopcount++);
+        if(topmenu[n].id == strcmd[c] && topmenu[n].func)
+          (*topmenu[n].func)();
 
-    for(n=0; topmenu[n].id && !g_error; n++)
-      if((topmenu[n].isauto & 2) && topmenu[n].func)
-        (*topmenu[n].func)();
-  }
+        if(loop && g_error)
+          goto goterror;
 
-printf("ERROR FOUND! HALTING TEST AFTER LOOP %d\n\n", loopcount);
+      }
+    }
+  } while(loop);
+
+  return;
+
+goterror:
+  printf("ERROR FOUND! HALTING TEST AFTER LOOP %d\n\n", loopcount);
 
   while(1) {
     ToggleLed();
     usleep(100000);      // fast flashing indicates error
-  }
-}
-
-void GoExec(char *cmdstr) {
-int c, n;
-
-  for(c=0; cmdstr[c]; c++) {
-
-    for(n=0; topmenu[n].id; n++)
-      if(cmdstr[c] == topmenu[n].id)
-        break;
-
-    if(!topmenu[n].id) {
-      printf("Please enter a choice from the menu!\n");
-      return;
-    }
-
-    if(!topmenu[n].func)
-      return;  // Quit
-
-    (*topmenu[n].func)();
   }
 }
 
@@ -277,12 +271,15 @@ void usage() {
 
   printf("Usage:\n> f-test -h\n"
 	 "\tPrint this help message and exit.\n"
-	 "> f-test -a\n"
-	 "\t-a = Run tests automatically, stop on failure\n"
-	 "> f-test -x CDEF\n"
-	 "\t-x C = Execute one or more commands 'C', 'D'... and return\n"
+	 "> f-test -x[RcCT]\n"
+	 "\t-x C = Execute one or more listed commands and return\n"
+	 "> f-test -a[ldMs6oO]\n"
+	 "\t-a = Run listed tests automatically, stop on failure\n"
+	 "   No space allowed between option and argument,\n"
+	 "   -a or -x by itself will run the default strings shown here.\n"
 	 "> f-test\n"
-	 "\tNo args = run interactvely\n\n");
+	 "\tNo args = run interactvely\n"
+         "Note that -x and -a may be combined to do init then loop.\n\n");
 
 }
 
