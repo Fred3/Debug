@@ -58,6 +58,7 @@ void SetCautious();
 void OlaTest();
 void OlaTest2();
 void TimerTest();
+void ScriptTest();
 void TXSpeed();
 void ClockGate();
 
@@ -75,6 +76,10 @@ int Dma1D(unsigned int srcaddr, unsigned int dstaddr,
 int  g_cautious = 1;
 int  g_auto = 0;
 int  g_error = 0;
+char g_scriptname[STRINGMAX] = "cd ../bytefail; ./test.sh";
+
+char defAuto[] = "ldMs6oOxRCT";
+char defExec[] ="RcCT";
 
 struct menu_st {
   const char  id;
@@ -97,6 +102,7 @@ struct menu_st topmenu[] = {
   {'o', "Ola Test", &OlaTest},
   {'O', "Ola Test #2", &OlaTest2},
   {'t', "Timer Test", &TimerTest},
+  {'x', "eXternal Script Test", &ScriptTest},
   {'T', "TX Speed", &TXSpeed},
   {'C', "Toggle Clock Gating", &ClockGate},
   {'Q', "Quit", NULL},
@@ -111,8 +117,9 @@ int main(int argc, char *argv[]) {
 
   opterr = 0;
 
-  while((c = getopt(argc, argv, "ha::x::")) != -1) {
+  while((c = getopt(argc, argv, "ha::x::s:")) != -1) {
     switch(c) {
+
     case 'h':
       usage();
       return 0;
@@ -121,15 +128,19 @@ int main(int argc, char *argv[]) {
       if(optarg)
         strAuto = optarg;
       else
-        strAuto = "ldMs6oO";  // Default
+        strAuto = defAuto;  // Default
       break;
 
     case 'x':
       if(optarg)
         strExec = optarg;
       else
-        strExec = "RcCT";  // Default
+        strExec = defExec;  // Default
       break;
+
+     case 's':
+       strncpy(g_scriptname, optarg, STRINGMAX);
+       break;
 
     case '?':
       if(isprint(optopt))
@@ -271,16 +282,16 @@ void usage() {
 
   printf("Usage:\n> f-test -h\n"
 	 "\tPrint this help message and exit.\n"
-	 "> f-test -x[RcCT]\n"
-	 "\t-x C = Execute one or more listed commands and return\n"
-	 "> f-test -a[ldMs6oO]\n"
+	 "> f-test -x[%s]\n"
+	 "\t-x = Execute one or more listed commands and return\n"
+	 "> f-test -a[%s]\n"
 	 "\t-a = Run listed tests automatically, stop on failure\n"
 	 "   No space allowed between option and argument,\n"
 	 "   -a or -x by itself will run the default strings shown here.\n"
 	 "> f-test\n"
 	 "\tNo args = run interactvely\n"
-         "Note that -x and -a may be combined to do init then loop.\n\n");
-
+         "Note that -x and -a may be combined to do init then loop.\n\n",
+	 defExec, defAuto);
 }
 
 void ShowPlatformInfo() {
@@ -1351,6 +1362,31 @@ void TimerTest() {
   printf("%u cycles in 2 seconds = %0.2fMHz\n", reg, (double)reg / 2. / 1.0e6);
 
   printf("Done!\n\n");
+}
+
+void ScriptTest() {
+  char cmd[STRINGMAX];
+  int  ret;
+
+  if(!g_auto) {
+
+    printf("Enter script to run (<return> for %s)\n", g_scriptname);
+    fgets(cmd, STRINGMAX, stdin);
+
+    if(cmd[0] != '\n')
+      strncpy(g_scriptname, cmd, STRINGMAX);
+  }
+
+  printf("Running \"%s\"\n", g_scriptname);
+
+  ret = system(g_scriptname);
+
+  if(ret) {
+    printf("FAILED %d\n", ret);
+    g_error++;
+  } else {
+    printf("PASSED\n");
+  }
 }
 
 void TXSpeed() {

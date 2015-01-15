@@ -48,7 +48,10 @@ typedef struct {
 	uint32_t local_swrite_16;
 	uint32_t chip_swrite_16;
 	uint32_t eram_swrite_16;
+        uint32_t flag;
 } test_t;
+
+#define loop()  for(n=0; n<1000; n++) {}
 
 int main(void)
 {
@@ -57,10 +60,12 @@ int main(void)
 	register volatile void *local asm("r22") = (void *) 0x6ff0;
 	register volatile void *chip  asm("r23") = (void *) 0x80901000;
 	register volatile void *eram  asm("r24") = (void *) 0x8f100000;
+	int  n;
 
 	*((uint32_t *)local) = 0xdeadbeef;
 	*((uint32_t *)chip) = 0xdeadbeef;
 	*((uint32_t *)eram) = 0xdeadbeef;
+	loop();
 
 	memset((void *) monkey, 0xAB, sizeof(*monkey));
 
@@ -68,6 +73,7 @@ int main(void)
 	*((uint32_t *)local) = foo;
 	*((uint32_t *)chip) = foo;
 	*((uint32_t *)eram) = foo;
+	loop();
 
 	monkey->local_read = *((uint8_t*) local);
 	monkey->chip_read = *((uint8_t*) chip);
@@ -83,10 +89,12 @@ int main(void)
 	*((uint32_t *)local) = 0x0;
 	*((uint32_t *)chip) = 0x0;
 	*((uint32_t *)eram) = 0x0;
+	loop();
 
 	*((uint8_t *)local) = foo;
 	*((uint8_t *)chip) = foo;
 	*((uint8_t *)eram) = foo;
+	loop();
 
 	monkey->local_write = *((uint32_t*) local);
 	monkey->chip_write = *((uint32_t*) chip);
@@ -95,10 +103,12 @@ int main(void)
 	*((uint32_t *)local) = 0x0;
 	*((uint32_t *)chip) = 0x0;
 	*((uint32_t *)eram) = 0x0;
+	loop();
 
 	*((int8_t *)local) = foo;  // Don't expect this to be different, but...
 	*((int8_t *)chip) = foo;
 	*((int8_t *)eram) = foo;
+	loop();
 
 	monkey->local_swrite = *((uint32_t*) local);
 	monkey->chip_swrite = *((uint32_t*) chip);
@@ -110,10 +120,12 @@ int main(void)
 	*((uint32_t *)local) = foo;
 	*((uint32_t *)chip) = foo;
 	*((uint32_t *)eram) = foo;
+	loop();
 
 	monkey->local_read_16 = *((uint16_t*) local);
 	monkey->chip_read_16 = *((uint16_t*) chip);
 	monkey->eram_read_16 =  *((uint16_t*) eram);
+	loop();
 
 	monkey->local_sread_16 = *((int16_t*) local);
 	monkey->chip_sread_16 = *((int16_t*) chip);
@@ -125,27 +137,34 @@ int main(void)
 	*((uint32_t *)local) = 0x0;
 	*((uint32_t *)chip) = 0x0;
 	*((uint32_t *)eram) = 0x0;
+	loop();
 
 	*((uint16_t *)local) = foo;
 	*((uint16_t *)chip) = foo;
 	*((uint16_t *)eram) = foo;
+	loop();
 
 	monkey->local_write_16 = *((uint32_t*) local);
 	monkey->chip_write_16 = *((uint32_t*) chip);
 	monkey->eram_write_16 =  *((uint32_t*) eram);
+	loop();
 
 	*((uint32_t *)local) = 0x0;
 	*((uint32_t *)chip) = 0x0;
 	*((uint32_t *)eram) = 0x0;
+	loop();
 
 	*((int16_t *)local) = foo;  // Don't expect this to be different, but...
 	*((int16_t *)chip) = foo;
 	*((int16_t *)eram) = foo;
+	loop();
 
 	monkey->local_swrite_16 = *((uint32_t*) local);
 	monkey->chip_swrite_16 = *((uint32_t*) chip);
 	monkey->eram_swrite_16 =  *((uint32_t*) eram);
 #endif
+
+	monkey->flag = 0xCAFECAFE;
 	return EXIT_SUCCESS;;
 }
 

@@ -1,21 +1,22 @@
 #!/bin/bash
 
 # Adjust to 0 when this actually works.
-EXPECTED_ERRORS=2
+EXPECTED_ERRORS=0
 
 LOGFILE=$(mktemp)
 
-i=1
+i=0
 while true; do
 	echo -n .
-	if [[ $[i % 40] -eq 0 ]] ; then echo; fi
 	i=$[i+1]
-	./test.sh | tee ${LOGFILE} | grep -q "${EXPECTED_ERRORS} x FAILED" || break
+	if [[ $[i % 40] -eq 0 ]] ; then echo ${i}; fi
+#	./test.sh | tee ${LOGFILE} | grep -q "${EXPECTED_ERRORS} x FAILED" || break
+	./test.sh | tee ${LOGFILE} | grep -q "PASSED" || break
 done
 
 echo
 echo Failed after ${i} iterations.
-echo Expected ${EXPECTED_ERRORS} erros but got:
+echo Expected ${EXPECTED_ERRORS} errors but got:
 echo ===========================================
 cat ${LOGFILE}
 echo ===========================================

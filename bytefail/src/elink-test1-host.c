@@ -29,6 +29,8 @@ along with this program, see the file COPYING. If not, see
 #include <e-hal.h>
 #include <e-loader.h>
 
+#define SET_CCLK
+
 #ifdef SET_CCLK
 void set_cclk_divider(unsigned int divider)
 {
@@ -75,9 +77,9 @@ int main(int argc, char *argv[])
 	uint32_t local_write_16, chip_write_16, eram_write_16;
 	uint32_t local_sread_16, chip_sread_16, eram_sread_16;
 	uint32_t local_swrite_16, chip_swrite_16, eram_swrite_16;
+	uint32_t flag;
 	int fail = 0;
 	uint32_t bad = 0xbaadc0de;
-
 
 	e_init(NULL);
 	e_get_platform_info(&platform);
@@ -85,8 +87,11 @@ int main(int argc, char *argv[])
 	e_open(&dev, 0, 0, platform.rows, platform.cols);
 
 #ifdef SET_CCLK
-	set_cclk_divider(6);
-	set_tx_divider(&dev, 0);
+	int  clkdiv = 7, txdiv = 1;
+	printf("Setting clock divider to %d\n", clkdiv);
+	set_cclk_divider(clkdiv);
+	printf("Setting TX divider to %d.\n", txdiv);
+	set_tx_divider(&dev, txdiv);
 #endif
 
 	e_write(&dev, 0, 0, 0x7000, &bad, sizeof(uint32_t));
@@ -95,6 +100,14 @@ int main(int argc, char *argv[])
 
 	//Lazy way of waiting till finished
 	sleep(1);
+
+	e_read(&dev, 0, 0, 0x7060, &flag, sizeof(uint32_t));
+	if(flag != 0xCAFECAFE) {
+	  printf("ERROR: Device code did not complete! (0x%08X)\n", flag);
+	  fail++;
+	} else {
+	  printf("Device finished.\n");
+	}
 
 	e_read(&dev, 0, 0, 0x7000, &local_read, sizeof(uint32_t));
 	e_read(&dev, 0, 0, 0x7004, &chip_read, sizeof(uint32_t));
@@ -114,26 +127,26 @@ int main(int argc, char *argv[])
 
 	printf("Unsigned Reads\n");
 	printf("local: 0x%08X\n", local_read);
-	printf("chip: 0x%08X %s\n", chip_read, chk(chip, read));
-	printf("eram: 0x%08X %s\n", eram_read, chk(eram, read));
+	printf("chip:  0x%08X %s\n", chip_read, chk(chip, read));
+	printf("eram:  0x%08X %s\n", eram_read, chk(eram, read));
 	putchar('\n');
 
 	printf("Unsigned Writes\n");
 	printf("local: 0x%08X\n", local_write);
-	printf("chip: 0x%08X %s\n", chip_write, chk(chip, write));
-	printf("eram: 0x%08X %s\n", eram_write, chk(eram, write));
+	printf("chip:  0x%08X %s\n", chip_write, chk(chip, write));
+	printf("eram:  0x%08X %s\n", eram_write, chk(eram, write));
 	putchar('\n');
 
 	printf("Signed Reads\n");
 	printf("local: 0x%08X\n", local_sread);
-	printf("chip: 0x%08X %s\n", chip_sread, chk(chip, sread));
-	printf("eram: 0x%08X %s\n", eram_sread, chk(eram, sread));
+	printf("chip:  0x%08X %s\n", chip_sread, chk(chip, sread));
+	printf("eram:  0x%08X %s\n", eram_sread, chk(eram, sread));
 	putchar('\n');
 
 	printf("Signed Writes\n");
 	printf("local: 0x%08X\n", local_swrite);
-	printf("chip: 0x%08X %s\n", chip_swrite, chk(chip, swrite));
-	printf("eram: 0x%08X %s\n", eram_swrite, chk(eram, swrite));
+	printf("chip:  0x%08X %s\n", chip_swrite, chk(chip, swrite));
+	printf("eram:  0x%08X %s\n", eram_swrite, chk(eram, swrite));
 	putchar('\n');
 
 	e_read(&dev, 0, 0, 0x7030, &local_read_16, sizeof(uint32_t));
@@ -154,27 +167,32 @@ int main(int argc, char *argv[])
 
 	printf("16b Unsigned Reads\n");
 	printf("local: 0x%08X\n", local_read_16);
-	printf("chip: 0x%08X %s\n", chip_read_16, chk(chip, read_16));
-	printf("eram: 0x%08X %s\n", eram_read_16, chk(eram, read_16));
+	printf("chip:  0x%08X %s\n", chip_read_16, chk(chip, read_16));
+	printf("eram:  0x%08X %s\n", eram_read_16, chk(eram, read_16));
 	putchar('\n');
 
 	printf("16b Unsigned Writes\n");
 	printf("local: 0x%08X\n", local_write_16);
-	printf("chip: 0x%08X %s\n", chip_write_16, chk(chip, write_16));
-	printf("eram: 0x%08X %s\n", eram_write_16, chk(eram, write_16));
+	printf("chip:  0x%08X %s\n", chip_write_16, chk(chip, write_16));
+	printf("eram:  0x%08X %s\n", eram_write_16, chk(eram, write_16));
 	putchar('\n');
 
 	printf("16b Signed Reads\n");
 	printf("local: 0x%08X\n", local_sread_16);
-	printf("chip: 0x%08X %s\n", chip_sread_16, chk(chip, sread_16));
-	printf("eram: 0x%08X %s\n", eram_sread_16, chk(eram, sread_16));
+	printf("chip:  0x%08X %s\n", chip_sread_16, chk(chip, sread_16));
+	printf("eram:  0x%08X %s\n", eram_sread_16, chk(eram, sread_16));
 	putchar('\n');
 
 	printf("16b Signed Writes\n");
 	printf("local: 0x%08X\n", local_swrite_16);
-	printf("chip: 0x%08X %s\n", chip_swrite_16, chk(chip, swrite_16));
-	printf("eram: 0x%08X %s\n", eram_swrite_16, chk(eram, swrite_16));
+	printf("chip:  0x%08X %s\n", chip_swrite_16, chk(chip, swrite_16));
+	printf("eram:  0x%08X %s\n", eram_swrite_16, chk(eram, swrite_16));
 	putchar('\n');
+
+#if WAIT
+	printf("Press <return>\n");
+	getchar();
+#endif
 
 	e_close(&dev);
 	e_finalize();
