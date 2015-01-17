@@ -94,14 +94,23 @@ int main(int argc, char *argv[])
 	set_tx_divider(&dev, txdiv);
 #endif
 
-	e_write(&dev, 0, 0, 0x7000, &bad, sizeof(uint32_t));
+	e_write(&dev, 0, 0, 0x7060, &bad, sizeof(uint32_t));
 
+	printf("Loading code to Epiphany\n");
 	e_load_group("./bin/elink-test1-device.elf" , &dev, 0, 0, 1, 1, E_TRUE);
 
-	//Lazy way of waiting till finished
-	sleep(1);
+	// Wait until finished (check for timeout?)
+	do {
+	  e_read(&dev, 0, 0, 0x7060, &flag, sizeof(uint32_t));
+	} while(flag == bad);
 
-	e_read(&dev, 0, 0, 0x7060, &flag, sizeof(uint32_t));
+	if(flag == 0xABABABAB) {
+	  printf("Running\n");
+	  do {
+	    e_read(&dev, 0, 0, 0x7060, &flag, sizeof(uint32_t));
+	  } while(flag == 0xABABABAB);
+	}
+
 	if(flag != 0xCAFECAFE) {
 	  printf("ERROR: Device code did not complete! (0x%08X)\n", flag);
 	  fail++;

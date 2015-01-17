@@ -78,7 +78,7 @@ int  g_auto = 0;
 int  g_error = 0;
 char g_scriptname[STRINGMAX] = "cd ../bytefail; ./test.sh";
 
-char defAuto[] = "ldMs6oOxRCT";
+char defAuto[] = "RCTldMs6oOx";
 char defExec[] ="RcCT";
 
 struct menu_st {
